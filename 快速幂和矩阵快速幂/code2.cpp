@@ -15,7 +15,7 @@ public:
         }
         if (n == 1)
         {
-            return 0;
+            return 1;
         }
         vector<vector<int>> start = {{1, 0}};
         vector<vector<int>> base = {{1, 1}, {1, 0}};
