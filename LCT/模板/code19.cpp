@@ -1,0 +1,318 @@
+// 一共n个点、m条无向边，边有边权，编号1~m，图保证连通
+// 接下来有q次修改，格式 e w，代表第e条边的边权修改为w
+// 每次修改之后，打印当前图的最小生成树边权和
+// 1 <= n <= 2 * 10^4
+// 1 <= m、q <= 5 * 10^4
+// 0 <= 边权 <= 5 * 10^7
+// 测试链接 : https://www.luogu.com.cn/problem/P3206
+
+#include<iostream>
+#include<algorithm>
+#include<map>
+#include<set>
+#include<vector>
+#include<climits>
+#include<cmath>
+#include<queue>
+#include<cstring>
+#include<bit>
+using namespace std;
+using ll = long long;
+
+const int MAXN = 200010;
+const int MAXQ = 50010;
+const int MAXT = 4000010;
+int n, m,q;
+
+int ex[MAXN];
+int ey[MAXN];
+int ew[MAXN];
+int cnte;
+
+int changeEdge[MAXQ];
+int endTime[MAXN];
+
+int head[MAXQ << 2];
+int nxt[MAXT];
+int to[MAXT];
+int cntg;
+
+int fa[MAXN];
+int ls[MAXN];
+int rs[MAXN];
+bool rev[MAXN];
+int sta[MAXN];
+
+int maxEdge[MAXN];
+
+int rollbackEdge[MAXN << 1];
+int rollbackType[MAXN << 1];
+int opsize;
+
+ll mstSum = 1;
+ll ans[MAXQ];
+
+void rangeAddEdge(int i, int e) {
+	nxt[++cntg] = head[i];
+	to[cntg] = e;
+	head[i] = cntg;
+}
+
+void add(int jobl, int jobr, int jobe, int l, int r, int i) {
+	if (jobl <= l && r <= jobr) {
+		rangeAddEdge(i, jobe);
+	}
+	else
+	{
+		int mid = (l + r) >> 1;
+		if (jobl <= mid) {
+			add(jobl, jobr, jobe, l, mid, i << 1);
+		}
+		if (jobr > mid) {
+			add(jobl, jobr, jobe, mid + 1, r, i << 1 | 1);
+		}
+	}
+}
+
+void up(int x) {
+	maxEdge[x] = x <= n ? 0 : x - n;
+	if (ew[maxEdge[ls[x]]] > ew[maxEdge[x]]) {
+		maxEdge[x] = maxEdge[ls[x]];
+	}
+	if (ew[maxEdge[rs[x]]] > ew[maxEdge[x]]) {
+		maxEdge[x] = maxEdge[rs[x]];
+	}
+}
+
+bool isroot(int x) {
+	return ls[fa[x]] != x && rs[fa[x]] != x;
+}
+
+int lr(int x) {
+	return ls[fa[x]] == x ? 0 : 1;
+}
+
+void reverse(int x) {
+	if (x != 0) {
+		swap(ls[x], rs[x]);
+		rev[x] = !rev[x];
+	}
+}
+
+void down(int x) {
+	if (rev[x]) {
+		reverse(ls[x]);
+		reverse(rs[x]);
+		rev[x] = false;
+	}
+}
+
+void rotate(int x) {
+	int f = fa[x], g = fa[f];
+	if (lr(x) == 0) {
+		ls[f] = rs[x];
+		if (ls[f] != 0) {
+			fa[ls[f]] = f;
+		}
+		rs[x] = f;
+	}
+	else
+	{
+		rs[f] = ls[x];
+		if (rs[f] != 0) {
+			fa[rs[f]] = f;
+		}
+		ls[x] = f;
+	}
+	if (!isroot(f)) {
+		if (lr(f) == 0) {
+			ls[g] = x;
+		}
+		else
+		{
+			rs[g] = x;
+		}
+	}
+	fa[f] = x;
+	fa[x] = g;
+	up(f);
+	up(x);
+}
+
+void splay(int x) {
+	int siz = 0;
+	sta[++siz] = x;
+	for (int y = x;!isroot(y);y = fa[y]) {
+		sta[++siz] = fa[y];
+	}
+	while (siz!=0)
+	{
+		down(sta[siz--]);
+	}
+	while (!isroot(x))
+	{
+		int f = fa[x];
+		if (!isroot(f)) {
+			if (lr(x) == lr(f)) {
+				rotate(f);
+			}
+			else
+			{
+				rotate(x);
+			}
+		}
+		rotate(x);
+	}
+}
+
+void access(int x) {
+	for (int y = 0;x != 0;y = x, x = fa[x]) {
+		splay(x);
+		rs[x] = y;
+		up(x);
+	}
+}
+
+void makeroot(int x) {
+	access(x);
+	splay(x);
+	reverse(x);
+}
+
+int findroot(int x) {
+	access(x);
+	splay(x);
+	down(x);
+	while (ls[x]!=0)
+	{
+		x = ls[x];
+		down(x);
+	}
+	splay(x);
+	return x;
+}
+
+void split(int x, int y) {
+	makeroot(x);
+	access(y);
+	splay(y);
+}
+
+void link(int x, int y) {
+	makeroot(x);
+	if (findroot(y) != x) {
+		fa[x] = y;
+	}
+}
+
+void cut(int x, int y) {
+	makeroot(x);
+	if (findroot(y) == x && fa[y] == x && ls[y] == 0 && rs[x] == y) {
+		fa[y] = rs[x] = 0;
+		up(x);
+	}
+}
+
+void backup(int edge, int type) {
+	rollbackEdge[++opsize] = edge;
+	rollbackType[opsize] = type;
+}
+
+void addEdge(int e) {
+	int x = ex[e];
+	int y = ey[e];
+	makeroot(x);
+	if (findroot(y) != x) {
+		link(x, n + e);
+		link(y, n + e);
+		backup(e, 1);
+		mstSum += ew[e];
+	}
+	else
+	{
+		split(x, y);
+		int pre = maxEdge[y];
+		if (ew[pre] > ew[e]) {
+			cut(ex[pre], n + pre);
+			cut(ey[pre], n + pre);
+			backup(pre, 2);
+			mstSum -= ew[pre];
+			link(x, n + e);
+			link(y, n + e);
+			backup(e, 1);
+			mstSum += ew[e];
+		}
+	}
+}
+
+void undo() {
+	int e = rollbackEdge[opsize];
+	int t = rollbackType[opsize--];
+	if (t == 1) {
+		cut(ex[e], n + e);
+		cut(ey[e], n + e);
+		mstSum -= ew[e];
+	}
+	else
+	{
+		link(ex[e], n + e);
+		link(ey[e], n + e);
+		mstSum += ew[e];
+	}
+}
+
+void dfs(int l, int r, int i) {
+	int tmp = opsize;
+	for (int k = head[i];k;k = nxt[k]) {
+		addEdge(to[k]);
+	}
+	if (l == r) {
+		ans[l] = mstSum;
+	}
+	else
+	{
+		int mid = (l + r) >> 1;
+		dfs(l, mid, i << 1);
+		dfs(mid + 1, r, i << 1 | 1);
+	}
+	while (opsize > tmp) {
+		undo();
+	}
+}
+
+void prepare() {
+	for (int i = 1;i <= m;i++) {
+		endTime[i] = q + 1;
+	}
+	for (int i = q;i >= 1;i--) {
+		int e = changeEdge[i];
+		add(i, endTime[e] - 1, m + i, 1, q, 1);
+		endTime[e] = i;
+	}
+	for (int i = 1;i <= m;i++) {
+		if (endTime[i] > 1) {
+			add(1, endTime[i] - 1, i, 1, q, 1);
+		}
+	}
+}
+
+int main() {
+	cin >> n >> m >> q;
+	cnte = m;
+	for (int i = 1;i <= m;i++) {
+		cin >> ex[i] >> ey[i] >> ew[i];
+	}
+	for (int i = 1, e, w;i <= q;i++) {
+		cin >> e >> w;
+		changeEdge[i] = e;
+		ex[++cnte] = ex[e];
+		ey[cnte] = ey[e];
+		ew[cnte] = w;
+	}
+	prepare();
+	dfs(1, q, 1);
+	for (int i = 1;i <= q;i++) {
+		cout << ans[i]-1 << endl;
+	}
+	return 0;
+}
