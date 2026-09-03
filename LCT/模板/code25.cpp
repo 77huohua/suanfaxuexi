@@ -1,0 +1,235 @@
+// 初始没有节点，接下来有q条操作，操作类型如下
+// 操作 B p : 新建一个节点，并与节点p连接，如果p为-1则新建一个独立节点
+// 操作 Q x : 打印节点x到所在连通块中最远节点的距离
+// 1 <= q <= 10^5
+// 测试链接 : https://www.luogu.com.cn/problem/P4271
+
+#include<iostream>
+#include<algorithm>
+#include<map>
+#include<set>
+#include<vector>
+#include<climits>
+#include<cmath>
+#include<queue>
+#include<cstring>
+#include<bit>
+using namespace std;
+using ll = long long;
+
+const int MAXN = 100010;
+int q, cntn;
+
+int fa[MAXN];
+int ls[MAXN];
+int rs[MAXN];
+bool rev[MAXN];
+int sta[MAXN];
+
+int siz[MAXN];
+
+int father[MAXN];
+int diameter[MAXN];
+int dl[MAXN];
+int dr[MAXN];
+
+int find(int x) {
+	if (x != father[x]) {
+		father[x] = find(father[x]);
+	}
+	return father[x];
+}
+
+void up(int x) {
+	siz[x] = siz[ls[x]] + siz[rs[x]] + 1;
+}
+
+bool isroot(int x) {
+	return ls[fa[x]] != x && rs[fa[x]] != x;
+}
+
+int lr(int x) {
+	return ls[fa[x]] == x ? 0 : 1;
+}
+
+void reverse(int x) {
+	if (x != 0) {
+		swap(ls[x], rs[x]);
+		rev[x] = !rev[x];
+	}
+}
+
+void down(int x) {
+	if (rev[x]) {
+		reverse(ls[x]);
+		reverse(rs[x]);
+		rev[x] = false;
+	}
+}
+
+void rotate(int x) {
+	int f = fa[x], g = fa[f];
+	if (lr(x) == 0) {
+		ls[f] = rs[x];
+		if (ls[f] != 0) {
+			fa[ls[f]] = f;
+		}
+		rs[x] = f;
+	}
+	else
+	{
+		rs[f] = ls[x];
+		if (rs[f] != 0) {
+			fa[rs[f]] = f;
+		}
+		ls[x] = f;
+	}
+	if (!isroot(f)) {
+		if (lr(f) == 0) {
+			ls[g] = x;
+		}
+		else
+		{
+			rs[g] = x;
+		}
+	}
+	fa[f] = x;
+	fa[x] = g;
+	up(f);
+	up(x);
+}
+
+void splay(int x) {
+	int siz = 0;
+	sta[++siz] = x;
+	for (int y = x;!isroot(y);y = fa[y]) {
+		sta[++siz] = fa[y];
+	}
+	while (siz!=0)
+	{
+		down(sta[siz--]);
+	}
+	while (!isroot(x))
+	{
+		int f = fa[x];
+		if (!isroot(f)) {
+			if (lr(x) == lr(f)) {
+				rotate(f);
+			}
+			else
+			{
+				rotate(x);
+			}
+		}
+		rotate(x);
+	}
+}
+
+void access(int x) {
+	for (int y = 0;x != 0;y = x, x = fa[x]) {
+		splay(x);
+		rs[x] = y;
+		up(x);
+	}
+}
+
+void makeroot(int x) {
+	access(x);
+	splay(x);
+	reverse(x);
+}
+
+int findroot(int x) {
+	access(x);
+	splay(x);
+	down(x);
+	while (ls[x]!=0)
+	{
+		x = ls[x];
+		down(x);
+	}
+	splay(x);
+	return x;
+}
+
+void split(int x, int y) {
+	makeroot(x);
+	access(y);
+	splay(y);
+}
+
+void link(int x, int y) {
+	makeroot(x);
+	if (findroot(y) != x) {
+		fa[x] = y;
+	}
+}
+
+/*void cut(int x, int y) {
+	makeroot(x);
+	if (findroot(y) == x && fa[y] == x && ls[y] == 0 && rs[x] == y) {
+		fa[y] = rs[x] = 0;
+		up(x);
+	}
+}
+*/
+
+int getDist(int x, int y) {
+	split(x, y);
+	return siz[y] - 1;
+}
+
+void build(int p) {
+	int x = ++cntn;
+	siz[x] = 1;
+	father[x] = x;
+	dl[x] = x;
+	dr[x] = x;
+	diameter[x] = 0;
+	if (p != -1) {
+		int root = find(p);
+		int a = dl[root];
+		int b = dr[root];
+		int best = diameter[root];
+		int bestl = a;
+		int bestr = b;
+		link(x, p);
+		int dista = getDist(x, a);
+		if (dista > best) {
+			best = dista;
+			bestl = x;
+			bestr = a;
+		}
+		int distb = getDist(x, b);
+		if (distb > best) {
+			best = distb;
+			bestl = x;
+			bestr = b;
+		}
+		father[x] = root;
+		dl[root] = bestl;
+		dr[root] = bestr;
+		diameter[root] = best;
+	}
+}
+
+int query(int x) {
+	int fx = find(x);
+	return max(getDist(x, dl[fx]), getDist(x, dr[fx]));
+}
+
+int main() {
+	cin >> q;
+	string op;
+	int x;
+	for (int i = 1;i <= q;i++) {
+		cin >> op>>x;
+		if (op == "B") {
+			build(x);
+		}
+		else {
+			cout << query(x) << endl;
+		}
+	}
+	return 0;
+}
